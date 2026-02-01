@@ -31,7 +31,11 @@ const elements = {
     // Product Display
     productName: document.getElementById('productName'),
     productEan: document.getElementById('productEan'),
-    productPrice: document.getElementById('productPrice')
+    productPrice: document.getElementById('productPrice'),
+
+    // Not Found
+    notFoundSection: document.getElementById('notFoundSection'),
+    notFoundCode: document.getElementById('notFoundCode')
 };
 
 // Event Listeners
@@ -73,6 +77,7 @@ function performSearch() {
     // UI Updates: Loading state
     elements.resultSection.classList.add('hidden');
     elements.errorState.classList.add('hidden');
+    if (elements.notFoundSection) elements.notFoundSection.classList.add('hidden');
 
     showToast("Buscando dados...", "info"); // Show loading toast
 
@@ -96,7 +101,8 @@ function performSearch() {
             displayProduct(product);
             hideToast();
         } else {
-            showToast(`Produto não encontrado (${query})`, "error");
+            hideToast(); // Hide loading toast
+            showNotFound(query);
         }
 
         elements.searchInput.select();
@@ -184,6 +190,15 @@ function displayProduct(product) {
     } catch (e) {
         console.error("Erro ao exibir produto", e);
         showToast("Erro ao exibir dados do produto.", "error");
+    }
+}
+
+function showNotFound(code) {
+    if (elements.notFoundSection) {
+        if (elements.notFoundCode) elements.notFoundCode.innerText = code;
+        elements.notFoundSection.classList.remove('hidden');
+    } else {
+        showToast(`Produto não encontrado (${code})`, "error");
     }
 }
 
