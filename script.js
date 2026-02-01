@@ -190,44 +190,39 @@ function startScanning() {
         html5QrcodeScanner = new Html5Qrcode("reader");
     }
 
-    // Increased scan area and FPS
-    // Strategy: Try HD -> Fallback to Standard -> Fallback to Any
-    const startCamera = (config) => {
-        return html5QrcodeScanner.start(config, scannerConfig, onScanSuccess);
+    // Simplified Mobile Strategy: Try Rear -> Fallback to Any
+    // Removing HD constraints to ensure compatibility
+
+    const startCamera = (constraints) => {
+        return html5QrcodeScanner.start(constraints, scannerConfig, onScanSuccess);
     };
 
     const scannerConfig = {
-        fps: 15,
-        qrbox: { width: 280, height: 280 },
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0
     };
 
-    // 1. Try HD Resolution (Best for focus)
-    startCamera({
-        facingMode: "environment",
-        video: { width: { min: 1280, ideal: 1920 }, height: { min: 720, ideal: 1080 } }
-    }).then(() => {
-        setupCameraExtras();
-    }).catch(errHD => {
-        console.warn("HD Camera failed, trying standard...", errHD);
-
-        // 2. Try Standard Environment (Rear)
-        startCamera({ facingMode: "environment" }).then(() => {
+    // 1. Try Rear Camera (Standard environment)
+    startCamera({ facingMode: "environment" })
+        .then(() => {
             setupCameraExtras();
-        }).catch(errStd => {
-            console.warn("Standard Camera failed, trying generic...", errStd);
+        })
+        .catch(errEnv => {
+            console.warn("Rear camera failed, trying generic...", errEnv);
 
-            // 3. Try Generic (Any Camera) - Last Resort
-            startCamera({ facingMode: "user" }).then(() => {
-                setupCameraExtras();
-                showToast("Câmera frontal ativada (traseira não disponível).", "info");
-            }).catch(errGeneric => {
-                console.error("All camera attempts failed", errGeneric);
-                showToast("Erro: Permissão de câmera negada ou dispositivo incompatível.", "error");
-                elements.scannerModal.classList.add('hidden');
-            });
+            // 2. Try Any Camera (User/Front/Default)
+            startCamera({ facingMode: "user" })
+                .then(() => {
+                    setupCameraExtras();
+                    showToast("Câmera alternativa ativada.", "info");
+                })
+                .catch(errAny => {
+                    console.error("All cameras failed", errAny);
+                    showToast("Não foi possível acessar a câmera.", "error");
+                    elements.scannerModal.classList.add('hidden');
+                });
         });
-    });
 }
 
 function setupCameraExtras() {
