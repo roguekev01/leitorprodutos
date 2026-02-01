@@ -219,7 +219,8 @@ function startScanning() {
                 })
                 .catch(errAny => {
                     console.error("All cameras failed", errAny);
-                    showToast("Não foi possível acessar a câmera.", "error");
+                    // Show DETAILED error for debugging
+                    showToast(`Erro Câmera: ${errAny.name} - ${errAny.message}`, "error");
                     elements.scannerModal.classList.add('hidden');
                 });
         });
