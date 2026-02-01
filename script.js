@@ -1,11 +1,12 @@
 // VERSION CHECK
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 console.log(`SYSTEM VERSION ${APP_VERSION} LOADED`);
 
 // Global State
 let productsData = [];
 let html5QrcodeScanner = null;
 let isFlashOn = false;
+let isLoading = false;
 
 // ID da Planilha
 const SHEET_ID = "1yaDHltfBgrRe2iLASRiokXcTpGQb1Uq2Vo3lQ3dVHlw";
@@ -19,6 +20,7 @@ const elements = {
     searchInput: document.getElementById('searchInput'),
     btnSearch: document.getElementById('btnSearch'),
     btnCamera: document.getElementById('btnCamera'),
+    btnRefresh: document.getElementById('btnRefresh'),
 
     scannerModal: document.getElementById('scannerModal'),
     btnCloseScanner: document.getElementById('btnCloseScanner'),
@@ -39,9 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Show Version
     if (elements.appVersion) elements.appVersion.innerText = `Build: v${APP_VERSION}`;
 
-    // Show Search Setup Immediately
-    if (elements.searchSection) elements.searchSection.classList.remove('hidden');
+    // 2. Initial Data Load
+    initDataLoad();
 
+    // 3. Setup UI Events
     if (elements.btnSearch) {
         elements.btnSearch.addEventListener('click', performSearch);
     }
@@ -52,63 +55,100 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (elements.btnRefresh) {
+        elements.btnRefresh.addEventListener('click', () => {
+            showToast("Atualizando dados...", "info");
+            initDataLoad(true);
+        });
+    }
+
     // Camera events
     if (elements.btnCamera) elements.btnCamera.addEventListener('click', startScanning);
     if (elements.btnCloseScanner) elements.btnCloseScanner.addEventListener('click', stopScanning);
     if (elements.btnFlash) elements.btnFlash.addEventListener('click', toggleFlash);
-
-    // Auto-focus input
-    if (elements.searchInput) elements.searchInput.focus();
 });
 
 /**
+ * Loads data from Sheet and stores in memory.
+ * @param {boolean} forceRefresh - If true, shows toasts.
+ */
+function initDataLoad(forceRefresh = false) {
+    if (isLoading) return;
+    isLoading = true;
+
+    // UI Feedback if forcing
+    if (forceRefresh) showToast("Baixando planilha...", "info");
+
+    fetchSheetData((data) => {
+        productsData = data;
+        isLoading = false;
+
+        // Setup UI once data is ready
+        if (elements.searchSection) elements.searchSection.classList.remove('hidden');
+
+        if (forceRefresh) {
+            showToast(`${productsData.length} produtos atualizados!`, "success");
+            setTimeout(hideToast, 2000);
+        } else {
+            // Gentle notification on load
+            console.log(`Loaded ${productsData.length} products.`);
+        }
+
+        // Auto-focus input
+        if (elements.searchInput) elements.searchInput.focus();
+
+    }, (errorMsg) => {
+        isLoading = false;
+        showToast(errorMsg, "error");
+        // Even if error, show search section so user can retry or see UI
+        if (elements.searchSection) elements.searchSection.classList.remove('hidden');
+    });
+}
+
+
+/**
  * Main Search Function.
- * Triggers a fresh data fetch from Google Sheets every time.
+ * Uses local memory data. INSTANT.
  */
 function performSearch() {
     if (!elements.searchInput) return;
     const query = elements.searchInput.value.trim();
     if (!query) return;
 
-    // UI Updates: Loading state
+    // Check if data is loaded
+    if (!productsData || productsData.length === 0) {
+        showToast("Dados ainda não carregados. Tente atualizar.", "error");
+        return;
+    }
+
+    // UI Updates: Clear previous
     elements.resultSection.classList.add('hidden');
     elements.errorState.classList.add('hidden');
 
-    showToast("Buscando dados...", "info"); // Show loading toast
+    // Search logic runs locally
+    // Try strict match first, then lenient
+    let product = productsData.find(p => p.EAN === query);
 
-    // Fetch fresh data
-    fetchSheetData((data) => {
-        if (!data || data.length === 0) {
-            showToast("Planilha vazia ou erro de leitura.", "error");
-            return;
-        }
+    // If not found, try removing leading zeros if numeric
+    if (!product && /^\d+$/.test(query)) {
+        product = productsData.find(p => Number(p.EAN) === Number(query));
+    }
 
-        // Search logic runs AFTER data is loaded
-        // Try strict match first, then lenient
-        let product = data.find(p => p.EAN === query);
+    if (product) {
+        displayProduct(product);
+        hideToast();
+        elements.searchInput.blur(); // Hide keyboard
+    } else {
+        showToast(`Produto não encontrado (${query})`, "error");
+    }
 
-        // If not found, try removing leading zeros if numeric
-        if (!product && /^\d+$/.test(query)) {
-            product = data.find(p => Number(p.EAN) === Number(query));
-        }
-
-        if (product) {
-            displayProduct(product);
-            hideToast();
-        } else {
-            showToast(`Produto não encontrado (${query})`, "error");
-        }
-
-        elements.searchInput.select();
-    }, (errorMsg) => {
-        showToast(errorMsg, "error");
-    });
+    elements.searchInput.select();
 }
 
 
 /**
  * Fetches data from Google Sheet using JSONP.
- * Bypasses CORS and gets fresh data on every call.
+ * Bypasses CORS and gets fresh data.
  * @param {Function} onSuccess - Run with data array
  * @param {Function} onError - Run with error message
  */
@@ -122,7 +162,7 @@ function fetchSheetData(onSuccess, onError) {
             onError("Tempo limite excedido. Verifique sua internet.");
             cleanupScript(callbackName);
         }
-    }, 10000); // 10s Timeout
+    }, 15000); // 15s Timeout for initial load
 
     // Define global callback
     window[callbackName] = function (json) {
@@ -158,7 +198,7 @@ function fetchSheetData(onSuccess, onError) {
         clearTimeout(timeoutId);
         delete window[callbackName];
         cleanupScript(callbackName);
-        onError("Falha na conexão com o Google.");
+        onError("Falha na conexão com o Google. Verifique a internet.");
     };
     document.body.appendChild(script);
 }
@@ -188,7 +228,6 @@ function displayProduct(product) {
 }
 
 // --- Camera Logic ---
-// --- Camera Logic ---
 function startScanning() {
     // 1. Basic UI Setup
     elements.scannerModal.classList.remove('hidden');
@@ -201,11 +240,9 @@ function startScanning() {
     if (readerDiv) readerDiv.innerHTML = "";
 
     // 2. Security Check (HTTP vs HTTPS)
-    // Note: Localhost is considered secure, but IP addresses (192.168.x.x) are NOT.
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     const isSecure = location.protocol === 'https:';
 
-    // If not secure and not localhost, warn immediately
     if (!isSecure && !isLocal) {
         if (readerDiv) {
             readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
@@ -218,30 +255,23 @@ function startScanning() {
     }
 
     if (!html5QrcodeScanner) {
-        // verbose: true for console debugging
         html5QrcodeScanner = new Html5Qrcode("reader", true);
     }
 
-    // 3. Ultra-Simple Config (Max Compatibility)
-    // No qrbox sizes, let the library figure it out
     const config = {
         fps: 10,
         aspectRatio: 1.0
     };
 
-    // 4. Start Camera (Standard Environment)
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         config,
         onScanSuccess
     ).then(() => {
         setupCameraExtras();
-        // Visual confirmation
-        showToast("Câmera Iniciada!", "info");
+        // showToast("Câmera Iniciada!", "info");
     }).catch(err => {
         console.error("Camera Start Error:", err);
-
-        // Show Visible Error in the black box
         if (readerDiv) {
             readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
                 '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
@@ -249,16 +279,11 @@ function startScanning() {
                 `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
                 '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Tentar Novamente</button></div>';
         }
-
-        // Also Toast for good measure (now visible due to z-index fix)
         showToast(`Falha: ${err.name}`, "error");
-
-        // DO NOT CLOSE MODAL - Let user see the error
     });
 }
 
 function setupCameraExtras() {
-    // slight delay to allow camera to initialize before checking caps
     setTimeout(() => {
         checkFlashCapability();
         applyFocusConstraint();
@@ -267,15 +292,12 @@ function setupCameraExtras() {
 
 function applyFocusConstraint() {
     try {
-        // Use library method instead of manual track access
         const constraints = {
             focusMode: "continuous"
         };
-
         html5QrcodeScanner.applyVideoConstraints({
             advanced: [constraints]
         }).catch(e => console.log("Focus constraint rejected", e));
-
     } catch (e) {
         console.log("Focus constraints apply failed", e);
     }
@@ -283,14 +305,9 @@ function applyFocusConstraint() {
 
 function checkFlashCapability() {
     try {
-        // Use library method to get capabilities
         const capabilities = html5QrcodeScanner.getRunningTrackCameraCapabilities();
-
-        // Log capability for debug
         if (capabilities && capabilities.torch) {
             console.log("Torch supported (Library confirmed)");
-        } else {
-            console.log("Torch NOT supported by this camera/browser");
         }
     } catch (e) {
         console.log("Flash capability check failed", e);
@@ -299,28 +316,20 @@ function checkFlashCapability() {
 
 function toggleFlash() {
     if (!html5QrcodeScanner) {
-        showToast("Scanner não inicializado.", "error");
         return;
     }
-
     try {
         isFlashOn = !isFlashOn;
-
-        // Use Library Method for Constraints
         html5QrcodeScanner.applyVideoConstraints({
             advanced: [{ torch: isFlashOn }]
         }).then(() => {
             updateFlashButton();
-            // showToast(isFlashOn ? "Flash Ligado" : "Flash Desligado", "info");
         }).catch(err => {
             console.warn("Flash toggle failed", err);
-            isFlashOn = !isFlashOn; // Revert
-
-            // Show detailed error
+            isFlashOn = !isFlashOn;
             showToast(`Erro Flash: ${err.name || err}`, "error");
             updateFlashButton();
         });
-
     } catch (e) {
         showToast(`Erro Fatal Flash: ${e.message}`, "error");
     }
@@ -340,19 +349,15 @@ function stopScanning() {
     if (isFlashOn) {
         try { html5QrcodeScanner.applyVideoConstraints({ advanced: [{ torch: false }] }); } catch (e) { }
     }
-
-    // Safely stop or hide
     if (html5QrcodeScanner) {
         try {
             html5QrcodeScanner.stop().then(() => {
                 elements.scannerModal.classList.add('hidden');
                 html5QrcodeScanner.clear();
             }).catch(err => {
-                console.warn("Stop failed (scanner possibly not running)", err);
                 elements.scannerModal.classList.add('hidden');
             });
         } catch (e) {
-            console.warn("Stop exception", e);
             elements.scannerModal.classList.add('hidden');
         }
     } else {
@@ -369,20 +374,17 @@ function onScanSuccess(decodedText) {
 // UI Helpers
 function showToast(msg, type = "error") {
     if (!elements.errorState) return;
-
-    // Set Message
     if (elements.errorMessage) elements.errorMessage.innerText = msg;
     elements.errorState.classList.remove('hidden');
 
     const icon = elements.errorState.querySelector('i');
 
-    if (type === "info") {
-        elements.errorState.style.background = "var(--primary)";
-        if (icon) icon.className = "fa-solid fa-sync fa-spin";
+    if (type === "info" || type === "success") {
+        elements.errorState.style.background = type === "success" ? "var(--success)" : "var(--primary)";
+        if (icon) icon.className = type === "success" ? "fa-solid fa-check" : "fa-solid fa-sync fa-spin";
     } else {
         elements.errorState.style.background = "var(--error)";
         if (icon) icon.className = "fa-solid fa-triangle-exclamation";
-        // Auto hide errors after 3s
         setTimeout(() => elements.errorState.classList.add('hidden'), 3000);
     }
 }
