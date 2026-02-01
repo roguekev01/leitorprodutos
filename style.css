@@ -559,3 +559,28 @@ button {
     color: #4285F4;
     /* Google Blue */
 }
+
+/* Flash Button */
+.btn-flash {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: rgba(255, 255, 255, 0.2);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: white;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-flash.active {
+    background: #eab308;
+    /* Yellow/Gold for active flash */
+    color: #000;
+    border-color: #eab308;
+    box-shadow: 0 0 15px #eab308;
+}
