@@ -269,22 +269,40 @@ function checkFlashCapability() {
 }
 
 function toggleFlash() {
-    if (!html5QrcodeScanner) return;
+    if (!html5QrcodeScanner) {
+        showToast("Scanner não inicializado.", "error");
+        return;
+    }
 
-    isFlashOn = !isFlashOn;
+    try {
+        const track = html5QrcodeScanner.getRunningTrack();
+        if (!track) {
+            showToast("Erro: Câmera não detectada (Track null).", "error");
+            return;
+        }
 
-    const track = html5QrcodeScanner.getRunningTrack();
+        const caps = track.getCapabilities();
+        if (!caps.torch) {
+            showToast("Aviso: Seu celular diz que não tem flash.", "error");
+            // We try anyway, just in case
+        }
 
-    if (track) {
+        isFlashOn = !isFlashOn;
+
         track.applyConstraints({
             advanced: [{ torch: isFlashOn }]
         }).then(() => {
             updateFlashButton();
+            // Optional: confirm if it worked
+            showToast(isFlashOn ? "Flash Ligado" : "Flash Desligado", "info");
         }).catch(err => {
             console.error("Flash toggle failed", err);
-            isFlashOn = !isFlashOn; // Revert
-            showToast("Não foi possível ativar o flash", "error");
+            isFlashOn = !isFlashOn; // Revert state
+            showToast(`Erro ao ativar flash: ${err.name} - ${err.message}`, "error");
         });
+
+    } catch (e) {
+        showToast(`Erro fatal no flash: ${e.message}`, "error");
     }
 }
 
