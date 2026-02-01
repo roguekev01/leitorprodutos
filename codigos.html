@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Consulta por Código de Barras</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #ff9800, #4caf50);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: #fff;
+            width: 100%;
+            max-width: 420px;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #ff9800;
+            margin-top: 0;
+        }
+
+        .sub {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] { display: none; }
+
+        .file-label {
+            display: block;
+            background: #ff9800;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        input[type="text"], button {
+            width: 100%;
+            margin-top: 15px;
+            padding: 14px;
+            border-radius: 30px;
+            font-size: 16px;
+        }
+
+        input[type="text"] {
+            border: 1px solid #ddd;
+        }
+
+        button {
+            border: none;
+            background: #4caf50;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #bbb;
+        }
+
+        .resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 15px;
+            background: #f9f9f9;
+        }
+
+        .ok { border-left: 6px solid #4caf50; }
+        .erro { border-left: 6px solid #ff5722; }
+
+        .produto-img {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .produto-img img {
+            max-width: 100%;
+            border-radius: 12px;
+        }
+
+        .label { color: #777; font-size: 13px; }
+        .valor { font-size: 17px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Consulta EAN</h1>
+    <div class="sub">Leitor de planilha Excel</div>
+
+    <label for="arquivoExcel" class="file-label">📂 Selecionar Planilha</label>
+    <input type="file" id="arquivoExcel" accept=".xlsx,.xls">
+
+    <input type="text" id="codigo" placeholder="Digite o código de barras" disabled>
+
+    <button onclick="buscarEAN()" id="btnBuscar" disabled>🔍 Buscar Produto</button>
+
+    <div class="resultado" id="resultado"></div>
+</div>
+
+<script>
+let dadosPlanilha = [];
+
+// 🔑 COLE SUA API KEY AQUI
+const BING_API_KEY = "SUA_API_KEY_AQUI";
+
+document.getElementById('arquivoExcel').addEventListener('change', function(e) {
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(e.target.files[0]);
+
+    reader.onload = function(e) {
+        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const planilha = workbook.Sheets[workbook.SheetNames[0]];
+        dadosPlanilha = XLSX.utils.sheet_to_json(planilha);
+
+        document.getElementById('codigo').disabled = false;
+        document.getElementById('btnBuscar').disabled = false;
+        document.getElementById('resultado').innerHTML = "✅ Planilha carregada.";
+    };
+});
+
+async function buscarImagem(nomeProduto) {
+    const url = `https://api.bing.microsoft.com/v7.0/images/search?q=${encodeURIComponent(nomeProduto)}&count=1`;
+
+    const resposta = await fetch(url, {
+        headers: { "Ocp-Apim-Subscription-Key": BING_API_KEY }
+    });
+
+    const dados = await resposta.json();
+    return dados.value?.[0]?.contentUrl || null;
+}
+
+async function buscarEAN() {
+    const codigo = document.getElementById('codigo').value.trim();
+    const resultado = document.getElementById('resultado');
+
+    const item = dadosPlanilha.find(l => String(l.EAN).trim() === codigo);
+
+    if (!item) {
+        resultado.className = "resultado erro";
+        resultado.innerHTML = "❌ Produto não encontrado.";
+        return;
+    }
+
+    const venda = Number(item.VENDA).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+    resultado.className = "resultado ok";
+    resultado.innerHTML = `
+        <div class="label">Produto</div>
+        <div class="valor">${item.NOME}</div><br>
+        <div class="label">Venda</div>
+        <div class="valor">R$ ${venda}</div>
+        <div class="produto-img" id="imgProduto">🔍 Buscando imagem...</div>
+    `;
+
+    const img = await buscarImagem(item.NOME);
+    document.getElementById("imgProduto").innerHTML =
+        img ? `<img src="${img}">` : "⚠️ Imagem não encontrada.";
+}
+</script>
+
+</body>
+</html>
