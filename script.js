@@ -191,33 +191,51 @@ function startScanning() {
     }
 
     // Increased scan area and FPS
-    const config = {
-        fps: 15, // Higher FPS for faster focus/detection
+    // Strategy: Try HD -> Fallback to Standard -> Fallback to Any
+    const startCamera = (config) => {
+        return html5QrcodeScanner.start(config, scannerConfig, onScanSuccess);
+    };
+
+    const scannerConfig = {
+        fps: 15,
         qrbox: { width: 280, height: 280 },
         aspectRatio: 1.0
     };
 
-    // Use simple config but request better resolution (HD) for better focus
-    const cameraConfig = {
+    // 1. Try HD Resolution (Best for focus)
+    startCamera({
         facingMode: "environment",
         video: { width: { min: 1280, ideal: 1920 }, height: { min: 720, ideal: 1080 } }
-    };
+    }).then(() => {
+        setupCameraExtras();
+    }).catch(errHD => {
+        console.warn("HD Camera failed, trying standard...", errHD);
 
-    html5QrcodeScanner.start(
-        cameraConfig,
-        config,
-        onScanSuccess
-    ).then(() => {
-        // slight delay to allow camera to initialize before checking caps
-        setTimeout(() => {
-            checkFlashCapability();
-            applyFocusConstraint();
-        }, 500);
-    }).catch(err => {
-        console.error("Camera start failed", err);
-        showToast("Erro ao abrir câmera. Verifique permissões.", "error");
-        elements.scannerModal.classList.add('hidden'); // Just hide, don't stop()
+        // 2. Try Standard Environment (Rear)
+        startCamera({ facingMode: "environment" }).then(() => {
+            setupCameraExtras();
+        }).catch(errStd => {
+            console.warn("Standard Camera failed, trying generic...", errStd);
+
+            // 3. Try Generic (Any Camera) - Last Resort
+            startCamera({ facingMode: "user" }).then(() => {
+                setupCameraExtras();
+                showToast("Câmera frontal ativada (traseira não disponível).", "info");
+            }).catch(errGeneric => {
+                console.error("All camera attempts failed", errGeneric);
+                showToast("Erro: Permissão de câmera negada ou dispositivo incompatível.", "error");
+                elements.scannerModal.classList.add('hidden');
+            });
+        });
     });
+}
+
+function setupCameraExtras() {
+    // slight delay to allow camera to initialize before checking caps
+    setTimeout(() => {
+        checkFlashCapability();
+        applyFocusConstraint();
+    }, 500);
 }
 
 function applyFocusConstraint() {
