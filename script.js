@@ -1,6 +1,7 @@
 // Global State
 let productsData = [];
 let html5QrcodeScanner = null;
+let isFlashOn = false; // State for Flash
 
 // ID da Planilha
 const SHEET_ID = "1yaDHltfBgrRe2iLASRiokXcTpGQb1Uq2Vo3lQ3dVHlw";
@@ -16,6 +17,7 @@ const elements = {
 
     scannerModal: document.getElementById('scannerModal'),
     btnCloseScanner: document.getElementById('btnCloseScanner'),
+    btnFlash: document.getElementById('btnFlash'), // New Flash Button
 
     // Status / Errors
     errorState: document.getElementById('errorState'),
@@ -24,7 +26,9 @@ const elements = {
     // Product Display
     productName: document.getElementById('productName'),
     productEan: document.getElementById('productEan'),
-    productPrice: document.getElementById('productPrice')
+    productPrice: document.getElementById('productPrice'),
+
+    btnViewImage: document.getElementById('btnViewImage')
 };
 
 // Event Listeners
@@ -40,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Camera events
     elements.btnCamera.addEventListener('click', startScanning);
     elements.btnCloseScanner.addEventListener('click', stopScanning);
+    elements.btnFlash.addEventListener('click', toggleFlash);
 
     // Auto-focus input
     elements.searchInput.focus();
@@ -134,27 +139,98 @@ function displayProduct(product) {
     const formatter = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 });
     elements.productPrice.innerText = formatter.format(price);
 
+    // Update Image Link (Google Search)
+    const query = `${product.NOME} ${product.EAN}`;
+    const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+
+    if (elements.btnViewImage) elements.btnViewImage.href = searchUrl;
+
     elements.resultSection.classList.remove('hidden');
 }
 
 // --- Camera Logic ---
 function startScanning() {
     elements.scannerModal.classList.remove('hidden');
+    elements.btnFlash.classList.add('hidden'); // Hide flash initially
+    isFlashOn = false;
+    updateFlashButton();
+
     if (!html5QrcodeScanner) {
         html5QrcodeScanner = new Html5Qrcode("reader");
     }
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         config,
         onScanSuccess
-    ).catch(err => {
+    ).then(() => {
+        // Check for Flash capabilities
+        checkFlashCapability();
+    }).catch(err => {
         showToast("Erro na câmera.", "error");
         stopScanning();
     });
 }
 
+function checkFlashCapability() {
+    try {
+        const track = html5QrcodeScanner.getRunningTrackCameraCapabilities();
+        // Some devices report 'torch' in capabilities
+        if (track && track.torchFeature && track.torchFeature.isSupported()) {
+            elements.btnFlash.classList.remove('hidden');
+        } else {
+            // Fallback attempt: just try to show it anyway if we can't detect
+            // or keep hidden. Better to hide if unsure to avoid confusion.
+            // Actually most browsers don't expose torchFeature easily in this Lib wrapper
+            // We can access the video track directly if we could.
+
+            // Html5Qrcode exposes getRunningTrack()
+            const videoTrack = html5QrcodeScanner.getRunningTrack();
+            const capabilities = videoTrack.getCapabilities();
+
+            if (capabilities.torch) {
+                elements.btnFlash.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.log("Could not check flash capability", e);
+    }
+}
+
+function toggleFlash() {
+    if (!html5QrcodeScanner) return;
+
+    isFlashOn = !isFlashOn;
+
+    html5QrcodeScanner.applyVideoConstraints({
+        advanced: [{ torch: isFlashOn }]
+    }).then(() => {
+        updateFlashButton();
+    }).catch(err => {
+        console.error("Flash toggle failed", err);
+        isFlashOn = !isFlashOn; // Revert state
+    });
+}
+
+function updateFlashButton() {
+    if (isFlashOn) {
+        elements.btnFlash.classList.add('active');
+        elements.btnFlash.innerHTML = '<i class="fa-solid fa-bolt"></i>';
+    } else {
+        elements.btnFlash.classList.remove('active');
+        elements.btnFlash.innerHTML = '<i class="fa-solid fa-bolt"></i>';
+    }
+}
+
 function stopScanning() {
+    // Turn off flash before stopping
+    if (isFlashOn) {
+        try {
+            html5QrcodeScanner.applyVideoConstraints({ advanced: [{ torch: false }] });
+        } catch (e) { }
+    }
+
     if (html5QrcodeScanner) {
         html5QrcodeScanner.stop().then(() => {
             elements.scannerModal.classList.add('hidden');
@@ -168,7 +244,7 @@ function stopScanning() {
 function onScanSuccess(decodedText) {
     elements.searchInput.value = decodedText;
     stopScanning();
-    performSearch(); // Triggers the real-time fetch
+    performSearch();
 }
 
 // UI Helpers
@@ -176,7 +252,6 @@ function showToast(msg, type = "error") {
     elements.errorMessage.innerText = msg;
     elements.errorState.classList.remove('hidden');
 
-    // Simple color change based on type (using css var or direct style)
     if (type === "info") {
         elements.errorState.style.background = "var(--primary)";
         elements.errorState.querySelector('i').className = "fa-solid fa-sync fa-spin";
@@ -185,7 +260,6 @@ function showToast(msg, type = "error") {
         elements.errorState.querySelector('i').className = "fa-solid fa-triangle-exclamation";
     }
 
-    // Auto-hide only if it's an error (info stays until replaced)
     if (type === "error") {
         setTimeout(() => elements.errorState.classList.add('hidden'), 3000);
     }
@@ -193,3 +267,4 @@ function showToast(msg, type = "error") {
 function hideToast() {
     elements.errorState.classList.add('hidden');
 }
+
