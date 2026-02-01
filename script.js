@@ -182,7 +182,7 @@ function displayProduct(product) {
 // --- Camera Logic ---
 function startScanning() {
     elements.scannerModal.classList.remove('hidden');
-    elements.btnFlash.classList.add('hidden');
+    elements.btnFlash.classList.remove('hidden'); // Show flash by default
     isFlashOn = false;
     updateFlashButton();
 
@@ -197,8 +197,11 @@ function startScanning() {
         aspectRatio: 1.0
     };
 
-    // Use simple config to ensure camera opens
-    const cameraConfig = { facingMode: "environment" };
+    // Use simple config but request better resolution (HD) for better focus
+    const cameraConfig = {
+        facingMode: "environment",
+        video: { width: { min: 1280, ideal: 1920 }, height: { min: 720, ideal: 1080 } }
+    };
 
     html5QrcodeScanner.start(
         cameraConfig,
@@ -242,9 +245,9 @@ function checkFlashCapability() {
         const track = html5QrcodeScanner.getRunningTrack();
         const capabilities = track.getCapabilities();
 
-        // Check for Torch/Flash
+        // Log capability but don't hide button (trust user to try it)
         if (capabilities.torch) {
-            elements.btnFlash.classList.remove('hidden');
+            console.log("Torch supported");
         }
     } catch (e) {
         console.log("Flash capability check failed", e);

@@ -30,8 +30,7 @@
 
 body {
     font-family: 'Outfit', sans-serif;
-    background: url('background.png') no-repeat center center fixed;
-    background-size: cover;
+    background-color: var(--bg-dark);
     /* Ensure gradient doesn't scroll excessively */
     color: var(--text-main);
     min-height: 100vh;
@@ -44,7 +43,13 @@ body {
 
 /* Background Effects */
 .background-blobs {
-    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    overflow: hidden;
 }
 
 .blob {
