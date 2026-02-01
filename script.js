@@ -240,7 +240,7 @@ function startScanning() {
     if (readerDiv) readerDiv.innerHTML = "";
 
     // 2. Security Check (HTTP vs HTTPS)
-    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
     const isSecure = location.protocol === 'https:';
 
     if (!isSecure && !isLocal) {
@@ -254,33 +254,37 @@ function startScanning() {
         return;
     }
 
-    if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("reader", true);
-    }
-
-    const config = {
-        fps: 10,
-        aspectRatio: 1.0
-    };
-
-    html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-    ).then(() => {
-        setupCameraExtras();
-        // showToast("Câmera Iniciada!", "info");
-    }).catch(err => {
-        console.error("Camera Start Error:", err);
-        if (readerDiv) {
-            readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
-                '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
-                '<h3>Erro na Câmera</h3>' +
-                `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
-                '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Tentar Novamente</button></div>';
+    // Give the modal time to render/animate so the library can measure the container
+    setTimeout(() => {
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5Qrcode("reader", true);
         }
-        showToast(`Falha: ${err.name}`, "error");
-    });
+
+        const config = {
+            fps: 10,
+            aspectRatio: 1.0
+        };
+
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess
+        ).then(() => {
+            setupCameraExtras();
+            // showToast("Câmera Iniciada!", "info");
+        }).catch(err => {
+            console.error("Camera Start Error:", err);
+            if (readerDiv) {
+                readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
+                    '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
+                    '<h3>Erro na Câmera</h3>' +
+                    `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
+                    '<p style="font-size:0.8rem; margin-top:10px;">Se for a primeira vez, permita o acesso e tente novamente.</p>' +
+                    '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Recarregar</button></div>';
+            }
+            showToast(`Falha: ${err.name}`, "error");
+        });
+    }, 300); // 300ms delay for UI transition
 }
 
 function setupCameraExtras() {
