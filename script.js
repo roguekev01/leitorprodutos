@@ -254,36 +254,52 @@ function startScanning() {
         return;
     }
 
-    // Give the modal time to render/animate so the library can measure the container
+    // Give the modal time to render/animate
     setTimeout(() => {
         if (!html5QrcodeScanner) {
             html5QrcodeScanner = new Html5Qrcode("reader", true);
         }
 
-        const config = {
-            fps: 10,
-            aspectRatio: 1.0
+        // Attempt 1: Standard Config
+        const config = { fps: 10, aspectRatio: 1.0 };
+
+        // Helper to try starting with fallback
+        const tryStart = (useStrictConfig) => {
+            const constraints = useStrictConfig ? { facingMode: "environment" } : undefined;
+            const currentConfig = useStrictConfig ? config : { fps: 10 }; // Relax config
+
+            html5QrcodeScanner.start(
+                constraints, // use vague constraints on retry
+                currentConfig,
+                onScanSuccess
+            ).then(() => {
+                setupCameraExtras();
+            }).catch(err => {
+                console.error("Camera connection error:", err);
+
+                // If it was the strict attempt and failed specifically with NotReadable or Overconstrained
+                if (useStrictConfig && (err.name === "NotReadableError" || err.name === "OverconstrainedError")) {
+                    console.log("Retrying with relaxed constraints...");
+                    tryStart(false); // Retry with minimal config
+                    return;
+                }
+
+                // Final Error Handling
+                if (readerDiv) {
+                    readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
+                        '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
+                        '<h3>Erro na Câmera</h3>' +
+                        `<p>${err.name || 'Erro'}: Não foi possível acessar a câmera.</p>` +
+                        '<p style="font-size:0.8rem; margin-top:10px;">Verifique se deu permissão e se nenhum outro app está usando a câmera.</p>' +
+                        '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Recarregar App</button></div>';
+                }
+                showToast(`Erro Câmera: ${err.name}`, "error");
+            });
         };
 
-        html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            config,
-            onScanSuccess
-        ).then(() => {
-            setupCameraExtras();
-            // showToast("Câmera Iniciada!", "info");
-        }).catch(err => {
-            console.error("Camera Start Error:", err);
-            if (readerDiv) {
-                readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
-                    '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
-                    '<h3>Erro na Câmera</h3>' +
-                    `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
-                    '<p style="font-size:0.8rem; margin-top:10px;">Se for a primeira vez, permita o acesso e tente novamente.</p>' +
-                    '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Recarregar</button></div>';
-            }
-            showToast(`Falha: ${err.name}`, "error");
-        });
+        // Start with strict config
+        tryStart(true);
+
     }, 300); // 300ms delay for UI transition
 }
 
