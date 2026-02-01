@@ -30,15 +30,13 @@
 
 body {
     font-family: 'Outfit', sans-serif;
-    background-color: var(--bg-dark);
-    /* Ensure gradient doesn't scroll excessively */
-    color: var(--text-main);
-    min-height: 100vh;
+    color: var(--text-primary);
+    background: url('bg.png') no-repeat center center fixed;
+    background-size: cover;
+    margin: 0;
+    padding: 0;
     overflow-x: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    /* Center vertically on large screens */
+    min-height: 100vh;
 }
 
 /* Background Effects */
@@ -50,6 +48,8 @@ body {
     height: 100vh;
     z-index: -1;
     overflow: hidden;
+    display: none;
+    /* Hidden in favor of custom background */
 }
 
 .blob {

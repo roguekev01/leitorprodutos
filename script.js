@@ -1,5 +1,5 @@
 // VERSION CHECK
-const APP_VERSION = 5;
+const APP_VERSION = 6;
 console.log(`SYSTEM VERSION ${APP_VERSION} LOADED`);
 
 // Global State
