@@ -197,25 +197,23 @@ function startScanning() {
         aspectRatio: 1.0
     };
 
-    const constraints = {
-        facingMode: "environment",
-        focusMode: "continuous", // Attempt to force continuous focus
-        advanced: [{ focusMode: "continuous" }]
-    };
+    // Use simple config to ensure camera opens
+    const cameraConfig = { facingMode: "environment" };
 
     html5QrcodeScanner.start(
-        constraints,
+        cameraConfig,
         config,
         onScanSuccess
     ).then(() => {
         // slight delay to allow camera to initialize before checking caps
-        setTimeout(checkFlashCapability, 500);
-
-        // Attempt to apply focus track constraint directly if possible
-        applyFocusConstraint();
+        setTimeout(() => {
+            checkFlashCapability();
+            applyFocusConstraint();
+        }, 500);
     }).catch(err => {
-        showToast("Erro ao abrir câmera: " + err, "error");
-        stopScanning();
+        console.error("Camera start failed", err);
+        showToast("Erro ao abrir câmera. Verifique permissões.", "error");
+        elements.scannerModal.classList.add('hidden'); // Just hide, don't stop()
     });
 }
 
@@ -224,10 +222,14 @@ function applyFocusConstraint() {
         const track = html5QrcodeScanner.getRunningTrack();
         if (track) {
             const capabilities = track.getCapabilities();
-            if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+            // Try to enable continuous focus if supported
+            // "continuous" or "single-shot"
+            // modern browsers use 'focusMode'
+            if (capabilities.focusMode) {
+                // Try applying advanced constraints safely
                 track.applyConstraints({
-                    advanced: [{ focusMode: 'continuous' }]
-                });
+                    advanced: [{ focusMode: "continuous" }]
+                }).catch(e => console.log("Focus constraint rejected", e));
             }
         }
     } catch (e) {
@@ -283,11 +285,21 @@ function stopScanning() {
     if (isFlashOn) {
         try { html5QrcodeScanner.applyVideoConstraints({ advanced: [{ torch: false }] }); } catch (e) { }
     }
+
+    // Safely stop or hide
     if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().then(() => {
+        try {
+            html5QrcodeScanner.stop().then(() => {
+                elements.scannerModal.classList.add('hidden');
+                html5QrcodeScanner.clear();
+            }).catch(err => {
+                console.warn("Stop failed (scanner possibly not running)", err);
+                elements.scannerModal.classList.add('hidden');
+            });
+        } catch (e) {
+            console.warn("Stop exception", e);
             elements.scannerModal.classList.add('hidden');
-            html5QrcodeScanner.clear();
-        }).catch(() => elements.scannerModal.classList.add('hidden'));
+        }
     } else {
         elements.scannerModal.classList.add('hidden');
     }
