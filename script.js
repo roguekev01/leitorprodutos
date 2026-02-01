@@ -1,3 +1,7 @@
+// VERSION CHECK
+const APP_VERSION = 5;
+console.log(`SYSTEM VERSION ${APP_VERSION} LOADED`);
+
 // Global State
 let productsData = [];
 let html5QrcodeScanner = null;
@@ -8,6 +12,7 @@ const SHEET_ID = "1yaDHltfBgrRe2iLASRiokXcTpGQb1Uq2Vo3lQ3dVHlw";
 
 // DOM Elements
 const elements = {
+    appVersion: document.getElementById('appVersion'), // New version element
     searchSection: document.getElementById('searchSection'),
     resultSection: document.getElementById('resultSection'),
 
@@ -31,8 +36,11 @@ const elements = {
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Show Version
+    if (elements.appVersion) elements.appVersion.innerText = `Build: v${APP_VERSION}`;
+
     // Show Search Setup Immediately
-    elements.searchSection.classList.remove('hidden');
+    if (elements.searchSection) elements.searchSection.classList.remove('hidden');
 
     if (elements.btnSearch) {
         elements.btnSearch.addEventListener('click', performSearch);
@@ -180,50 +188,73 @@ function displayProduct(product) {
 }
 
 // --- Camera Logic ---
+// --- Camera Logic ---
 function startScanning() {
+    // 1. Basic UI Setup
     elements.scannerModal.classList.remove('hidden');
-    elements.btnFlash.classList.remove('hidden'); // Show flash by default
+    elements.btnFlash.classList.remove('hidden');
     isFlashOn = false;
     updateFlashButton();
 
-    if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("reader");
+    // Clear previous errors/content
+    const readerDiv = document.getElementById('reader');
+    if (readerDiv) readerDiv.innerHTML = "";
+
+    // 2. Security Check (HTTP vs HTTPS)
+    // Note: Localhost is considered secure, but IP addresses (192.168.x.x) are NOT.
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const isSecure = location.protocol === 'https:';
+
+    // If not secure and not localhost, warn immediately
+    if (!isSecure && !isLocal) {
+        if (readerDiv) {
+            readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
+                '<i class="fa-solid fa-lock-open" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
+                '<h3>Câmera Bloqueada</h3>' +
+                '<p>O navegador bloqueou a câmera por segurança.<br>Você está usando HTTP inseguro.</p>' +
+                '<p style="font-size:0.8rem; color:#ccc;">Use HTTPS ou Localhost.</p></div>';
+        }
+        return;
     }
 
-    // Simplified Mobile Strategy: Try Rear -> Fallback to Any
-    // Removing HD constraints to ensure compatibility
+    if (!html5QrcodeScanner) {
+        // verbose: true for console debugging
+        html5QrcodeScanner = new Html5Qrcode("reader", true);
+    }
 
-    const startCamera = (constraints) => {
-        return html5QrcodeScanner.start(constraints, scannerConfig, onScanSuccess);
-    };
-
-    const scannerConfig = {
+    // 3. Ultra-Simple Config (Max Compatibility)
+    // No qrbox sizes, let the library figure it out
+    const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0
     };
 
-    // 1. Try Rear Camera (Standard environment)
-    startCamera({ facingMode: "environment" })
-        .then(() => {
-            setupCameraExtras();
-        })
-        .catch(errEnv => {
-            console.warn("Rear camera failed, trying generic...", errEnv);
+    // 4. Start Camera (Standard Environment)
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess
+    ).then(() => {
+        setupCameraExtras();
+        // Visual confirmation
+        showToast("Câmera Iniciada!", "info");
+    }).catch(err => {
+        console.error("Camera Start Error:", err);
 
-            // 2. Try Any Camera (User/Front/Default)
-            startCamera({ facingMode: "user" })
-                .then(() => {
-                    setupCameraExtras();
-                    showToast("Câmera alternativa ativada.", "info");
-                })
-                .catch(errAny => {
-                    console.error("All cameras failed", errAny);
-                    // Show DETAILED error for debugging
-                    showToast(`Erro Câmera: ${errAny.name} - ${errAny.message}`, "error");
-                    elements.scannerModal.classList.add('hidden');
-                });
-        });
+        // Show Visible Error in the black box
+        if (readerDiv) {
+            readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
+                '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
+                '<h3>Erro na Câmera</h3>' +
+                `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
+                '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Tentar Novamente</button></div>';
+        }
+
+        // Also Toast for good measure (now visible due to z-index fix)
+        showToast(`Falha: ${err.name}`, "error");
+
+        // DO NOT CLOSE MODAL - Let user see the error
+    });
 }
 
 function setupCameraExtras() {
@@ -236,19 +267,15 @@ function setupCameraExtras() {
 
 function applyFocusConstraint() {
     try {
-        const track = html5QrcodeScanner.getRunningTrack();
-        if (track) {
-            const capabilities = track.getCapabilities();
-            // Try to enable continuous focus if supported
-            // "continuous" or "single-shot"
-            // modern browsers use 'focusMode'
-            if (capabilities.focusMode) {
-                // Try applying advanced constraints safely
-                track.applyConstraints({
-                    advanced: [{ focusMode: "continuous" }]
-                }).catch(e => console.log("Focus constraint rejected", e));
-            }
-        }
+        // Use library method instead of manual track access
+        const constraints = {
+            focusMode: "continuous"
+        };
+
+        html5QrcodeScanner.applyVideoConstraints({
+            advanced: [constraints]
+        }).catch(e => console.log("Focus constraint rejected", e));
+
     } catch (e) {
         console.log("Focus constraints apply failed", e);
     }
@@ -256,12 +283,14 @@ function applyFocusConstraint() {
 
 function checkFlashCapability() {
     try {
-        const track = html5QrcodeScanner.getRunningTrack();
-        const capabilities = track.getCapabilities();
+        // Use library method to get capabilities
+        const capabilities = html5QrcodeScanner.getRunningTrackCameraCapabilities();
 
-        // Log capability but don't hide button (trust user to try it)
-        if (capabilities.torch) {
-            console.log("Torch supported");
+        // Log capability for debug
+        if (capabilities && capabilities.torch) {
+            console.log("Torch supported (Library confirmed)");
+        } else {
+            console.log("Torch NOT supported by this camera/browser");
         }
     } catch (e) {
         console.log("Flash capability check failed", e);
@@ -275,34 +304,25 @@ function toggleFlash() {
     }
 
     try {
-        const track = html5QrcodeScanner.getRunningTrack();
-        if (!track) {
-            showToast("Erro: Câmera não detectada (Track null).", "error");
-            return;
-        }
-
-        const caps = track.getCapabilities();
-        if (!caps.torch) {
-            showToast("Aviso: Seu celular diz que não tem flash.", "error");
-            // We try anyway, just in case
-        }
-
         isFlashOn = !isFlashOn;
 
-        track.applyConstraints({
+        // Use Library Method for Constraints
+        html5QrcodeScanner.applyVideoConstraints({
             advanced: [{ torch: isFlashOn }]
         }).then(() => {
             updateFlashButton();
-            // Optional: confirm if it worked
-            showToast(isFlashOn ? "Flash Ligado" : "Flash Desligado", "info");
+            // showToast(isFlashOn ? "Flash Ligado" : "Flash Desligado", "info");
         }).catch(err => {
-            console.error("Flash toggle failed", err);
-            isFlashOn = !isFlashOn; // Revert state
-            showToast(`Erro ao ativar flash: ${err.name} - ${err.message}`, "error");
+            console.warn("Flash toggle failed", err);
+            isFlashOn = !isFlashOn; // Revert
+
+            // Show detailed error
+            showToast(`Erro Flash: ${err.name || err}`, "error");
+            updateFlashButton();
         });
 
     } catch (e) {
-        showToast(`Erro fatal no flash: ${e.message}`, "error");
+        showToast(`Erro Fatal Flash: ${e.message}`, "error");
     }
 }
 

@@ -426,18 +426,26 @@ button {
 /* Error Toast */
 .error-toast {
     position: fixed;
-    bottom: 30px;
+    top: 20px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-20px);
     background: var(--error);
     color: white;
     padding: 12px 24px;
     border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     display: flex;
     align-items: center;
     gap: 10px;
-    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
-    z-index: 100;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 2000;
+    /* Ensure it's above the modal (1000) */
+}
+
+.error-toast.hidden {
     animation: toastUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -495,20 +503,29 @@ button {
     font-size: 0.9rem;
 }
 
+/* Close Button */
 .btn-close {
     position: absolute;
-    top: 15px;
-    right: 15px;
-    background: rgba(255, 255, 255, 0.2);
-    width: 40px;
-    height: 40px;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    /* Darker background for visibility */
+    width: 45px;
+    height: 45px;
     border-radius: 50%;
     color: white;
-    z-index: 10;
+    z-index: 100000 !important;
+    /* Force on top */
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.btn-close:active {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 /* Adjust Search Box for Camera Button */
@@ -580,11 +597,26 @@ button {
     height: 40px;
     border-radius: 50%;
     color: white;
-    z-index: 10;
+    z-index: 10001;
+    /* High z-index */
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    /* For absolute positioning of version */
+}
+
+.version-badge {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
 }
 
 .btn-flash.active {
