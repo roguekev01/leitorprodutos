@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor | Consulta de Produtos</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- PapaParse for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- HTML5-QRCode for Camera Scanning -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- Scanner Modal Overlay -->
+    <div id="scannerModal" class="scanner-modal hidden">
+        <div class="scanner-content">
+            <button id="btnCloseScanner" class="btn-close"><i class="fa-solid fa-xmark"></i></button>
+            <div id="reader"></div>
+            <p class="scanner-tip">Aponte a câmera para o código de barras</p>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-barcode"></i>
+                <span>Leitor de Produtos</span>
+            </div>
+            <div class="status-indicator">
+                <div class="dot" style="background-color: var(--success); box-shadow: 0 0 10px var(--success);"></div>
+                <span style="color: var(--success);">Online</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Setup Section Removed (Auto-Connect) -->
+
+            <!-- Search Section (Visible after connection) -->
+            <section id="searchSection" class="card hidden">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Bip ou digite o código EAN..." autocomplete="off">
+
+                    <button id="btnCamera" class="btn-icon-action" title="Usar Câmera">
+                        <i class="fa-solid fa-camera"></i>
+                    </button>
+
+                    <button id="btnSearch" class="btn-action">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="resultSection" class="hidden">
+                <div class="product-card">
+
+
+                    <div class="product-details">
+                        <span class="badge" id="productEan">EAN: 7891011121314</span>
+                        <h1 id="productName">Nome do Produto Aqui</h1>
+
+                        <div class="price-tag">
+                            <span class="currency">R$</span>
+                            <span class="amount" id="productPrice">0,00</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Error State -->
+            <div id="errorState" class="error-toast hidden">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span id="errorMessage">Produto não encontrado</span>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
