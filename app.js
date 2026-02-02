@@ -1,5 +1,5 @@
 // VERSION CHECK
-const APP_VERSION = 6;
+const APP_VERSION = "0.8";
 console.log(`SYSTEM VERSION ${APP_VERSION} LOADED`);
 
 // Global State
@@ -244,32 +244,45 @@ function startScanning() {
         aspectRatio: 1.0
     };
 
-    // 4. Start Camera (Standard Environment)
-    html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-    ).then(() => {
-        setupCameraExtras();
-        // Visual confirmation
-        showToast("Câmera Iniciada!", "info");
-    }).catch(err => {
-        console.error("Camera Start Error:", err);
+    // 4. Start Camera (Standard Environment) with proper delay
+    // The delay ensures the DOM element #reader is fully visible and painted before the library tries to attach.
+    setTimeout(() => {
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess
+        ).then(() => {
+            setupCameraExtras();
+            // Visual confirmation
+            showToast("Câmera Iniciada!", "info");
+        }).catch(err => {
+            console.error("Camera Start Error:", err);
 
-        // Show Visible Error in the black box
-        if (readerDiv) {
-            readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
-                '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
-                '<h3>Erro na Câmera</h3>' +
-                `<p>${err.name || 'Erro'}: ${err.message || err}</p>` +
-                '<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">Tentar Novamente</button></div>';
-        }
+            let errorMsg = "Erro na câmera.";
+            let btnText = "Tentar Novamente";
 
-        // Also Toast for good measure (now visible due to z-index fix)
-        showToast(`Falha: ${err.name}`, "error");
+            // Improve Error Messages
+            if (err.name === "NotAllowedError" || err.toString().includes("Permission")) {
+                errorMsg = "Permissão negada. Ative a câmera no navegador.";
+                btnText = "Ajuda";
+            } else if (err.name === "NotFoundError" || err.toString().includes("device")) {
+                errorMsg = "Nenhuma câmera encontrada.";
+            }
 
-        // DO NOT CLOSE MODAL - Let user see the error
-    });
+            // Show Visible Error in the black box
+            if (readerDiv) {
+                readerDiv.innerHTML = '<div style="color:white; padding:20px; text-align:center;">' +
+                    '<i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:#ef4444; margin-bottom:15px;"></i><br>' +
+                    '<h3>Erro ao Iniciar</h3>' +
+                    `<p>${errorMsg}</p>` +
+                    `<p style="font-size:0.75rem; color:#aaa; margin-top:5px;">${err.name || ''}</p>` +
+                    `<button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; border-radius:8px; border:none; background:white; color:black; cursor:pointer;">${btnText}</button></div>`;
+            }
+
+            // Also Toast for good measure
+            showToast(errorMsg, "error");
+        });
+    }, 500); // 500ms delay for safe initialization
 }
 
 function setupCameraExtras() {
